@@ -80,9 +80,9 @@ class MachCommands(CommandBase):
              description='Install the Android SDK and NDK.',
              category='bootstrap')
     def bootstrap_android(self):
-
-        ndk = "android-ndk-r12b-{system}-{arch}"
-        tools = "sdk-tools-{system}-4333796"
+        versions_file = path.join(self.context.topdir, "support", "android", "versions.py")
+        versions = {}
+        execfile(versions_file, versions)
 
         sdk_build_tools = "27.0.3"
         emulator_images = [
@@ -90,36 +90,24 @@ class MachCommands(CommandBase):
             ("servo-x86", "28", "google_apis;x86"),
         ]
 
-        known_sha1 = {
-            # https://dl.google.com/android/repository/repository2-1.xml
-            "sdk-tools-darwin-4333796.zip": "ed85ea7b59bc3483ce0af4c198523ba044e083ad",
-            "sdk-tools-linux-4333796.zip": "8c7c28554a32318461802c1291d76fccfafde054",
-            "sdk-tools-windows-4333796.zip": "aa298b5346ee0d63940d13609fe6bec621384510",
-
-            # https://developer.android.com/ndk/downloads/older_releases
-            "android-ndk-r12b-windows-x86.zip": "8e6eef0091dac2f3c7a1ecbb7070d4fa22212c04",
-            "android-ndk-r12b-windows-x86_64.zip": "337746d8579a1c65e8a69bf9cbdc9849bcacf7f5",
-            "android-ndk-r12b-darwin-x86_64.zip": "e257fe12f8947be9f79c10c3fffe87fb9406118a",
-            "android-ndk-r12b-linux-x86_64.zip": "170a119bfa0f0ce5dc932405eaa3a7cc61b27694",
-        }
-
         toolchains = path.join(self.context.topdir, "android-toolchains")
         if not path.isdir(toolchains):
             os.makedirs(toolchains)
 
-        def download(target_dir, name, flatten=False):
+        def url_basename(url):
+            return url.rpartition("/")[-1]
+
+        def download(target_dir, url, expected_sha1, flatten=False):
             final = path.join(toolchains, target_dir)
             if path.isdir(final):
                 return
 
-            base_url = "https://dl.google.com/android/repository/"
-            filename = name + ".zip"
-            url = base_url + filename
+            filename = url_basename(url)
             archive = path.join(toolchains, filename)
 
             if not path.isfile(archive):
                 download_file(filename, url, archive)
-            check_hash(archive, known_sha1[filename], "sha1")
+            check_hash(archive, expected_sha1, "sha1")
             print("Extracting " + filename)
             remove = True  # Set to False to avoid repeated downloads while debugging this script
             if flatten:
@@ -132,11 +120,8 @@ class MachCommands(CommandBase):
             else:
                 extract(archive, final, remove=remove)
 
-        system = platform.system().lower()
-        machine = platform.machine().lower()
-        arch = {"i386": "x86"}.get(machine, machine)
-        download("ndk", ndk.format(system=system, arch=arch), flatten=True)
-        download("sdk", tools.format(system=system))
+        download("ndk", *versions["ndk"](), flatten=True)
+        download("sdk", *versions["sdk_tools"]())
 
         subprocess.check_call([
             path.join(toolchains, "sdk", "tools", "bin", "sdkmanager"),
