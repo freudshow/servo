@@ -11,9 +11,9 @@ from decisionlib import *
 def main(task_for, mock=False):
     if task_for == "github-push":
         if CONFIG.git_ref in ["refs/heads/auto", "refs/heads/try", "refs/heads/try-taskcluster"]:
-            linux_tidy_unit()
+            # linux_tidy_unit()
             android_arm32()
-            windows_dev()
+            # windows_dev()
             if mock:
                 windows_release()
                 linux_wpt()
@@ -80,8 +80,13 @@ def with_rust_nightly():
 
 
 def android_arm32():
+    versions = {}
+    exec(open(path_from_here("..", "..", "support", "android", "versions.py"), "rb").read(),
+         versions)
+
     return (
-        linux_build_task("Android ARMv7: build", dockerfile="build-android")
+        linux_build_task("Android ARMv7: build", with_dockerfile=False)
+        .with_dockerfile(dockerfile_path("build-android"), dockerfile_args=versions)
         .with_script("""
             yes | $ANDROID_SDK/tools/bin/sdkmanager "platforms;android-25"
             ./mach build --android --release
@@ -230,7 +235,11 @@ def daily_tasks_setup():
 
 
 def dockerfile_path(name):
-    return os.path.join(os.path.dirname(__file__), "docker", name + ".dockerfile")
+    return path_from_here("docker", name + ".dockerfile")
+
+
+def path_from_here(*components):
+    return os.path.join(os.path.dirname(__file__), *components)
 
 
 def linux_task(name):
@@ -241,8 +250,8 @@ def windows_task(name):
     return WindowsGenericWorkerTask(name).with_worker_type("servo-win2016")
 
 
-def linux_build_task(name, dockerfile="build"):
-    return (
+def linux_build_task(name, with_dockerfile=True):
+    task = (
         linux_task(name)
         # https://docs.taskcluster.net/docs/reference/workers/docker-worker/docs/caches
         # FIMXE: move to servo-* cache names
@@ -255,11 +264,13 @@ def linux_build_task(name, dockerfile="build"):
         })
         .with_index_and_artifacts_expire_in(build_artifacts_expire_in)
         .with_max_run_time_minutes(60)
-        .with_dockerfile(dockerfile_path(dockerfile))
         .with_env(**build_env, **linux_build_env)
         .with_repo()
         .with_index_and_artifacts_expire_in(build_artifacts_expire_in)
     )
+    if with_dockerfile:
+        task.with_dockerfile(dockerfile_path("build"))
+    return task
 
 
 def windows_build_task(name):

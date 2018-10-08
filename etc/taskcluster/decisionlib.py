@@ -430,14 +430,14 @@ class DockerWorkerTask(Task):
             git reset --hard "$GIT_SHA"
         """)
 
-    def with_dockerfile(self, dockerfile):
+    def with_dockerfile(self, dockerfile, dockerfile_args=None):
         basename = os.path.basename(dockerfile)
         suffix = ".dockerfile"
         assert basename.endswith(suffix)
         image_name = basename[:-len(suffix)]
 
-        dockerfile_contents = expand_dockerfile(dockerfile)
-        digest = hashlib.sha256(dockerfile_contents).hexdigest()
+        dockerfile_contents = expand_dockerfile(dockerfile, args=dockerfile_args)
+        digest = hashlib.sha256(dockerfile_contents.encode("utf8")).hexdigest()
 
         image_build_task = (
             DockerWorkerTask("Docker image: " + image_name)
@@ -468,22 +468,32 @@ class DockerWorkerTask(Task):
         })
 
 
-def expand_dockerfile(dockerfile):
+def expand_dockerfile(dockerfile, args=None):
     """
-    Read the file at path `dockerfile`,
-    and transitively expand the non-standard `% include` header if it is present.
+    Read the file at path `dockerfile` and interpret non-standard syntax:
+
+    * Transitively expand `% include` header if it is present.
+    * Replace e.g. `{{FOO}}` with `args["FOO"]`
     """
-    with open(dockerfile, "rb") as f:
-        dockerfile_contents = f.read()
+    def expand_include(dockerfile):
+        with open(dockerfile, "rb") as f:
+            dockerfile_contents = f.read().decode("utf8")
 
-    include_marker = b"% include"
-    if not dockerfile_contents.startswith(include_marker):
-        return dockerfile_contents
+        include_marker = "% include"
+        if not dockerfile_contents.startswith(include_marker):
+            return dockerfile_contents
 
-    include_line, _, rest = dockerfile_contents.partition(b"\n")
-    included = include_line[len(include_marker):].strip().decode("utf8")
-    path = os.path.join(os.path.dirname(dockerfile), included)
-    return b"\n".join([expand_dockerfile(path), rest])
+        include_line, _, rest = dockerfile_contents.partition("\n")
+        included = include_line[len(include_marker):].strip()
+        path = os.path.join(os.path.dirname(dockerfile), included)
+        return "\n".join([expand_include(path), rest])
+
+    args = args or {}
+    return re.sub(
+        r"\{\{([a-zA-Z0-9_]+)\}\}",
+        lambda m: args[m.group(1)],
+        expand_include(dockerfile)
+    )
 
 
 def git_env():

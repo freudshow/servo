@@ -29,7 +29,8 @@ class Index:
         raise TaskclusterRestFailure
 
 
-Queue = stringDate = fromNow = slugId = MagicMock()
+Queue = fromNow = slugId = MagicMock()
+stringDate = str
 sys.modules["taskcluster"] = sys.modules[__name__]
 sys.dont_write_bytecode = True
 os.environ.update(**{k: k for k in "TASK_ID TASK_OWNER TASK_SOURCE GIT_URL GIT_SHA".split()})

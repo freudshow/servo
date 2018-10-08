@@ -44,3 +44,5 @@ BASE_URL = "https://dl.google.com/android/repository/"
 import platform
 SYSTEM = platform.system().lower()
 ARCH = {"i386": "x86"}.get(platform.machine(), platform.machine())
+NDK_URL, NDK_SHA1 = ndk()
+SDK_TOOLS_URL, SDK_TOOLS_SHA1 = sdk_tools()
