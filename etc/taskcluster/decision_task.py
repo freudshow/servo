@@ -81,12 +81,9 @@ def with_rust_nightly():
 
 def android_arm32():
     return (
-        linux_build_task("Android ARMv7: build")
-        # file: NDK parses $(file $SHELL) to tell x64 host from x86
-        # wget: servo-media-gstreamer’s build script
+        linux_build_task("Android ARMv7: build", dockerfile="build-android")
         .with_script("""
-            apt-get install -y --no-install-recommends openjdk-8-jdk-headless file wget
-            ./etc/ci/bootstrap-android-and-accept-licences.sh
+            yes | $ANDROID_SDK/tools/bin/sdkmanager "platforms;android-25"
             ./mach build --android --release
         """)
         .with_artifacts(
@@ -244,7 +241,7 @@ def windows_task(name):
     return WindowsGenericWorkerTask(name).with_worker_type("servo-win2016")
 
 
-def linux_build_task(name):
+def linux_build_task(name, dockerfile="build"):
     return (
         linux_task(name)
         # https://docs.taskcluster.net/docs/reference/workers/docker-worker/docs/caches
@@ -258,7 +255,7 @@ def linux_build_task(name):
         })
         .with_index_and_artifacts_expire_in(build_artifacts_expire_in)
         .with_max_run_time_minutes(60)
-        .with_dockerfile(dockerfile_path("build"))
+        .with_dockerfile(dockerfile_path(dockerfile))
         .with_env(**build_env, **linux_build_env)
         .with_repo()
         .with_index_and_artifacts_expire_in(build_artifacts_expire_in)
